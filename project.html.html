@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Kamat Hand Art Air</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f; --surface: #13131a; --surface2: #1c1c27;
+    --border: rgba(255,255,255,0.08); --accent: #7c6ef5; --accent2: #f57c9e;
+    --text: #f0f0f8; --muted: #6b6b80; --glow: rgba(124,110,245,0.35);
+  }
+  body { background:#000; color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; overflow:hidden; user-select:none; }
+
+  /* SPLASH */
+  #splash { position:fixed; inset:0; z-index:100; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2rem; transition:opacity 0.6s ease,transform 0.6s ease; }
+  #splash.hidden { opacity:0; pointer-events:none; transform:scale(1.04); }
+  .logo-wrap { display:flex; align-items:center; gap:14px; }
+  .logo-icon { width:52px; height:52px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:26px; }
+  .logo-text { font-family:'Syne',sans-serif; font-size:2rem; font-weight:800; background:linear-gradient(90deg,#fff 0%,var(--accent) 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .tagline { font-size:0.95rem; color:var(--muted); letter-spacing:0.05em; }
+  .gesture-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; max-width:400px; width:90%; }
+  .gesture-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:18px 16px; display:flex; align-items:flex-start; gap:12px; }
+  .gesture-card .emoji { font-size:1.6rem; line-height:1; }
+  .gesture-card .label { font-size:0.8rem; color:var(--muted); margin-top:2px; }
+  .gesture-card .name { font-weight:500; font-size:0.92rem; }
+  .start-btn { margin-top:0.5rem; padding:14px 48px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border:none; border-radius:50px; color:#fff; font-family:'Syne',sans-serif; font-size:1rem; font-weight:700; cursor:pointer; letter-spacing:0.03em; box-shadow:0 0 32px rgba(124,110,245,0.4); transition:transform 0.15s,box-shadow 0.15s; }
+  .start-btn:hover { transform:scale(1.04); box-shadow:0 0 48px rgba(124,110,245,0.6); }
+  .start-btn:active { transform:scale(0.98); }
+
+  /* MAIN LAYOUT */
+  #app { position:fixed; inset:0; display:flex; }
+
+  /* CANVAS AREA */
+  #canvas-wrap { position:relative; flex:1; background:#000; overflow:hidden; }
+
+  /* LAYER 1 — live mirrored camera */
+  #video {
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    object-fit:cover;
+    transform:scaleX(-1);   /* mirror so user sees themselves naturally */
+    z-index:1;
+    transition:opacity 0.3s;
+  }
+
+  /* LAYER 2 — transparent drawing canvas */
+  #draw-canvas { position:absolute; inset:0; width:100%; height:100%; z-index:2; }
+
+  /* LAYER 3 — hand skeleton */
+  #overlay-canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:3; }
+
+  /* SIDEBAR */
+  #sidebar { width:224px; background:var(--surface); border-left:1px solid var(--border); display:flex; flex-direction:column; padding:18px 14px; gap:16px; overflow-y:auto; z-index:10; }
+  .sidebar-logo { display:flex; align-items:center; gap:10px; }
+  .sidebar-logo .icon { width:34px; height:34px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:17px; }
+  .sidebar-logo .name { font-family:'Syne',sans-serif; font-weight:800; font-size:1.05rem; }
+  .section-label { font-size:0.67rem; font-weight:500; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); margin-bottom:5px; }
+
+  /* STATUS */
+  #status-display { background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:10px 13px; display:flex; align-items:center; gap:10px; }
+  #status-emoji { font-size:1.3rem; }
+  #status-text { font-size:0.84rem; color:var(--muted); font-weight:500; }
+  .conf-bg { height:3px; border-radius:2px; background:rgba(255,255,255,0.07); overflow:hidden; margin-top:5px; }
+  #conf-fill { height:100%; border-radius:2px; background:linear-gradient(90deg,var(--accent),var(--accent2)); width:0%; transition:width 0.12s; }
+  #conf-txt { font-size:0.68rem; color:var(--muted); margin-top:3px; }
+
+  /* COLORS */
+  .color-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:5px; }
+  .color-swatch { width:100%; aspect-ratio:1; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:transform 0.15s,border-color 0.15s; }
+  .color-swatch:hover { transform:scale(1.14); }
+  .color-swatch.active { border-color:#fff; transform:scale(1.2); }
+
+  /* SLIDERS */
+  .slider-row { display:flex; align-items:center; gap:7px; }
+  input[type=range] { flex:1; -webkit-appearance:none; height:3px; border-radius:2px; background:var(--surface2); outline:none; cursor:pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:15px; height:15px; border-radius:50%; background:var(--accent); cursor:pointer; box-shadow:0 0 6px var(--glow); }
+  #glow-sl::-webkit-slider-thumb { background:var(--accent2); }
+  #opa-sl::-webkit-slider-thumb { background:#60a5fa; }
+  #smooth-sl::-webkit-slider-thumb { background:#34d399; }
+  .sval { font-size:0.78rem; color:var(--muted); min-width:34px; text-align:right; }
+
+  /* BUTTONS */
+  .btn { width:100%; padding:9px; background:var(--surface2); border:1px solid var(--border); border-radius:9px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:0.83rem; cursor:pointer; transition:background 0.15s,border-color 0.15s; display:flex; align-items:center; justify-content:center; gap:6px; }
+  .btn:hover { background:rgba(124,110,245,0.12); border-color:var(--accent); }
+  .btn.danger:hover { background:rgba(239,68,68,0.12); border-color:#ef4444; }
+  .btn.active { background:rgba(124,110,245,0.18); border-color:var(--accent); }
+
+  /* GESTURE MINI LIST */
+  .g-list { display:flex; flex-direction:column; gap:5px; }
+  .g-row { display:flex; align-items:center; gap:8px; font-size:0.76rem; color:var(--muted); }
+  .g-row span:first-child { font-size:0.95rem; width:20px; text-align:center; }
+
+  /* CURSOR DOT */
+  #cursor { position:fixed; border-radius:50%; pointer-events:none; z-index:50; transform:translate(-50%,-50%); width:20px; height:20px; background:rgba(124,110,245,0.55); box-shadow:0 0 12px var(--glow); border:2px solid rgba(255,255,255,0.3); transition:width 0.12s,height 0.12s,background 0.15s,box-shadow 0.15s; opacity:0; }
+
+  /* LOADING */
+  #loading { position:fixed; inset:0; z-index:200; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; }
+  #loading.hidden { display:none; }
+  .spinner { width:46px; height:46px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  #load-txt { color:var(--muted); font-size:0.9rem; }
+
+  /* TOAST */
+  #toast { position:fixed; bottom:22px; left:calc(50% - 112px); transform:translateX(-50%); background:var(--surface); border:1px solid var(--border); padding:9px 20px; border-radius:50px; font-size:0.84rem; color:var(--muted); z-index:300; opacity:0; transition:opacity 0.3s; pointer-events:none; }
+  #toast.show { opacity:1; }
+
+  /* camera opacity hint badge */
+  .hint-badge { font-size:0.67rem; color:var(--accent); background:rgba(124,110,245,0.1); border:1px solid rgba(124,110,245,0.25); border-radius:50px; padding:2px 8px; display:inline-block; margin-top:3px; }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="load-txt">Initializing hand tracking…</div>
+</div>
+
+<div id="splash" style="display:none;">
+  <div class="logo-wrap">
+    <div class="logo-icon">✍️</div>
+    <div class="logo-text">Kamat Hand Art Air</div>
+  </div>
+  <div class="tagline">Kamat Hand Art Air — Draw with your hands!</div>
+  <div class="gesture-grid">
+    <div class="gesture-card"><div class="emoji">☝️</div><div><div class="name">Draw</div><div class="label">Point index finger to draw</div></div></div>
+    <div class="gesture-card"><div class="emoji">✋</div><div><div class="name">Erase</div><div class="label">Open palm sweeps eraser</div></div></div>
+    <div class="gesture-card"><div class="emoji">🤏</div><div><div class="name">Move</div><div class="label">Pinch to move drawing</div></div></div>
+    <div class="gesture-card"><div class="emoji">✊</div><div><div class="name">Idle</div><div class="label">Fist to pause</div></div></div>
+  </div>
+  <button class="start-btn" id="start-btn">Let's Go!</button>
+</div>
+
+<div id="cursor"></div>
+<div id="toast"></div>
+
+<div id="app" style="display:none;">
+  <div id="canvas-wrap">
+    <!-- Layer 1: Live camera (you!) -->
+    <video id="video" playsinline autoplay muted></video>
+    <!-- Layer 2: Drawings -->
+    <canvas id="draw-canvas"></canvas>
+    <!-- Layer 3: Hand skeleton + fingertip dot -->
+    <canvas id="overlay-canvas"></canvas>
+  </div>
+
+  <div id="sidebar">
+    <div class="sidebar-logo">
+      <div class="icon">✍️</div>
+      <div class="name">Kamat Hand Art Air</div>
+    </div>
+
+    <div>
+      <div class="section-label">Gesture</div>
+      <div id="status-display">
+        <div id="status-emoji">✊</div>
+        <div style="flex:1">
+          <div id="status-text">Ready</div>
+          <div class="conf-bg"><div id="conf-fill"></div></div>
+          <div id="conf-txt">Confidence: —</div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Colors</div>
+      <div class="color-grid" id="color-grid"></div>
+    </div>
+
+    <div>
+      <div class="section-label">Thickness</div>
+      <div class="slider-row">
+        <input type="range" id="thick-sl" min="2" max="40" value="6"/>
+        <span class="sval" id="thick-val">6px</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Glow</div>
+      <div class="slider-row">
+        <input type="range" id="glow-sl" min="0" max="100" value="60"/>
+        <span class="sval" id="glow-val">60%</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Camera Opacity</div>
+      <div class="slider-row">
+        <input type="range" id="opa-sl" min="10" max="100" value="60"/>
+        <span class="sval" id="opa-val">60%</span>
+      </div>
+      <div class="hint-badge">You appear behind drawings</div>
+    </div>
+
+    <div>
+      <div class="section-label">Stroke Smoothing</div>
+      <div class="slider-row">
+        <input type="range" id="smooth-sl" min="1" max="12" value="6"/>
+        <span class="sval" id="smooth-val">6</span>
+      </div>
+    </div>
+
+    <button class="btn active" id="cam-btn">📷 Camera ON</button>
+    <button class="btn danger" id="clear-btn">🗑️ Clear Canvas</button>
+    <button class="btn" id="save-btn">💾 Save Image</button>
+
+    <div>
+      <div class="section-label">How to Play</div>
+      <div class="g-list">
+        <div class="g-row"><span>☝️</span><span>Index only → draw</span></div>
+        <div class="g-row"><span>✋</span><span>3+ fingers → erase</span></div>
+        <div class="g-row"><span>🤏</span><span>Pinch → move art</span></div>
+        <div class="g-row"><span>✊</span><span>Fist → idle</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1640029074/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1620248257/drawing_utils.js" crossorigin="anonymous"></script>
+
+<script>
+/* ===== PALETTE ===== */
+const COLORS = ['#ffffff','#f87171','#fb923c','#facc15','#4ade80','#34d399','#38bdf8','#818cf8','#c084fc','#f472b6','#64748b','#0ea5e9','#10b981','#f59e0b','#ef4444'];
+
+/* ===== SETTINGS ===== */
+let activeColor = '#ffffff', thickness = 6, glowAmount = 60, smoothing = 6, cameraOn = true;
+
+/* ===== STATE ===== */
+let currentGesture = 'none';
+let paths = [], currentPath = null, isDrawing = false;
+let posHistory = [];
+let gestureBuffer = [];
+const GBUF = 6; // gesture stability frames
+
+let pinching = false, pinchSX = 0, pinchSY = 0;
+let canvasOffX = 0, canvasOffY = 0, pinchOffSX = 0, pinchOffSY = 0;
+
+/* ===== DOM ===== */
+const loadingEl = document.getElementById('loading');
+const loadTxt   = document.getElementById('load-txt');
+const splashEl  = document.getElementById('splash');
+const appEl     = document.getElementById('app');
+const videoEl   = document.getElementById('video');
+const drawCanvas= document.getElementById('draw-canvas');
+const overCanvas= document.getElementById('overlay-canvas');
+const dc = drawCanvas.getContext('2d');
+const oc = overCanvas.getContext('2d');
+const statusEmoji = document.getElementById('status-emoji');
+const statusText  = document.getElementById('status-text');
+const confFill    = document.getElementById('conf-fill');
+const confTxt     = document.getElementById('conf-txt');
+const cursorEl    = document.getElementById('cursor');
+const toastEl     = document.getElementById('toast');
+const canvasWrap  = document.getElementById('canvas-wrap');
+
+/* ===== BUILD PALETTE ===== */
+COLORS.forEach(c => {
+  const sw = document.createElement('div');
+  sw.className = 'color-swatch' + (c === activeColor ? ' active' : '');
+  sw.style.background = c;
+  sw.addEventListener('click', () => {
+    document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+    sw.classList.add('active'); activeColor = c;
+  });
+  document.getElementById('color-grid').appendChild(sw);
+});
+
+/* ===== CONTROLS ===== */
+document.getElementById('thick-sl').addEventListener('input', e => { thickness = +e.target.value; document.getElementById('thick-val').textContent = thickness + 'px'; });
+document.getElementById('glow-sl').addEventListener('input', e => { glowAmount = +e.target.value; document.getElementById('glow-val').textContent = glowAmount + '%'; });
+document.getElementById('opa-sl').addEventListener('input', e => { const v = +e.target.value; document.getElementById('opa-val').textContent = v + '%'; videoEl.style.opacity = v / 100; });
+document.getElementById('smooth-sl').addEventListener('input', e => { smoothing = +e.target.value; document.getElementById('smooth-val').textContent = smoothing; posHistory = []; });
+
+document.getElementById('clear-btn').addEventListener('click', () => { paths = []; currentPath = null; dc.clearRect(0,0,drawCanvas.width,drawCanvas.height); showToast('Canvas cleared'); });
+document.getElementById('save-btn').addEventListener('click', () => {
+  const tmp = document.createElement('canvas');
+  tmp.width = drawCanvas.width; tmp.height = drawCanvas.height;
+  const ctx = tmp.getContext('2d');
+  ctx.save(); ctx.translate(tmp.width,0); ctx.scale(-1,1);
+  ctx.drawImage(videoEl, 0, 0, tmp.width, tmp.height);
+  ctx.restore();
+  ctx.drawImage(drawCanvas, 0, 0);
+  const a = document.createElement('a'); a.download = 'kamat-hand-art.png'; a.href = tmp.toDataURL(); a.click();
+  showToast('Saved!');
+});
+document.getElementById('cam-btn').addEventListener('click', () => {
+  cameraOn = !cameraOn;
+  videoEl.style.display = cameraOn ? 'block' : 'none';
+  const b = document.getElementById('cam-btn');
+  b.textContent = cameraOn ? '📷 Camera ON' : '📷 Camera OFF';
+  cameraOn ? b.classList.add('active') : b.classList.remove('active');
+});
+
+function showToast(msg) {
+  toastEl.textContent = msg; toastEl.classList.add('show');
+  setTimeout(() => toastEl.classList.remove('show'), 2000);
+}
+
+function resizeCanvases() {
+  const w = canvasWrap.clientWidth, h = canvasWrap.clientHeight;
+  if (drawCanvas.width !== w || drawCanvas.height !== h) {
+    const img = dc.getImageData(0, 0, drawCanvas.width, drawCanvas.height);
+    drawCanvas.width = w; drawCanvas.height = h;
+    overCanvas.width = w; overCanvas.height = h;
+    try { dc.putImageData(img, 0, 0); } catch(e){}
+  }
+}
+
+/* ===== GESTURE DETECTION (improved) ===== */
+function fingerExtended(tip, dip, pip) {
+  // Tip must be clearly above pip AND dip (more reliable than just tip>pip)
+  return tip.y < pip.y - 0.02 && tip.y < dip.y;
+}
+
+function detectRaw(lm) {
+  if (!lm || lm.length < 21) return 'none';
+
+  const iUp = fingerExtended(lm[8],  lm[7],  lm[6]);
+  const mUp = fingerExtended(lm[12], lm[11], lm[10]);
+  const rUp = fingerExtended(lm[16], lm[15], lm[14]);
+  const pUp = fingerExtended(lm[20], lm[19], lm[18]);
+
+  // Pinch: thumb tip vs index tip
+  const pd = Math.hypot(lm[4].x - lm[8].x, lm[4].y - lm[8].y);
+  if (pd < 0.07 && !mUp && !rUp && !pUp) return 'pinch';
+
+  // Draw: only index up, others clearly down
+  if (iUp && !mUp && !rUp && !pUp) return 'draw';
+
+  // Erase: 3 or more fingers up
+  if ([iUp, mUp, rUp, pUp].filter(Boolean).length >= 3) return 'erase';
+
+  return 'idle';
+}
+
+function stableGesture(raw) {
+  gestureBuffer.push(raw);
+  if (gestureBuffer.length > GBUF) gestureBuffer.shift();
+  const counts = {};
+  for (const g of gestureBuffer) counts[g] = (counts[g]||0) + 1;
+  let best = raw, bestN = 0;
+  for (const [g,n] of Object.entries(counts)) if (n > bestN) { bestN = n; best = g; }
+  return best;
+}
+
+function smoothPos(rx, ry) {
+  posHistory.push({x:rx, y:ry});
+  if (posHistory.length > smoothing) posHistory.shift();
+  return {
+    x: posHistory.reduce((s,p)=>s+p.x,0)/posHistory.length,
+    y: posHistory.reduce((s,p)=>s+p.y,0)/posHistory.length
+  };
+}
+
+const STATUS = {
+  draw:  {emoji:'☝️', text:'Drawing'},
+  erase: {emoji:'✋', text:'Erasing'},
+  pinch: {emoji:'🤏', text:'Moving'},
+  idle:  {emoji:'✊', text:'Ready'},
+  none:  {emoji:'—',  text:'No hand'}
+};
+function setStatus(g, conf) {
+  const s = STATUS[g] || STATUS.none;
+  statusEmoji.textContent = s.emoji;
+  statusText.textContent  = s.text;
+  const pct = Math.round(conf * 100);
+  confFill.style.width = pct + '%';
+  confTxt.textContent  = 'Confidence: ' + pct + '%';
+}
+
+function applyGlow(ctx, color, amt) {
+  if (amt > 0) {
+    const r = parseInt(color.slice(1,3),16), g = parseInt(color.slice(3,5),16), b = parseInt(color.slice(5,7),16);
+    ctx.shadowColor = `rgba(${r},${g},${b},${amt/100})`; ctx.shadowBlur = 20*(amt/100);
+  } else { ctx.shadowColor='transparent'; ctx.shadowBlur=0; }
+}
+
+function redrawAll() {
+  dc.clearRect(0,0,drawCanvas.width,drawCanvas.height);
+  for (const p of paths) {
+    if (p.points.length < 2) continue;
+    dc.beginPath(); dc.strokeStyle=p.color; dc.lineWidth=p.thickness; dc.lineCap='round'; dc.lineJoin='round';
+    applyGlow(dc, p.color, p.glow);
+    dc.moveTo(p.points[0].x+canvasOffX, p.points[0].y+canvasOffY);
+    for (let i=1;i<p.points.length;i++) dc.lineTo(p.points[i].x+canvasOffX, p.points[i].y+canvasOffY);
+    dc.stroke();
+  }
+  dc.shadowColor='transparent'; dc.shadowBlur=0;
+}
+
+/* ===== MAIN TRACKING CALLBACK ===== */
+function onResults(results) {
+  resizeCanvases();
+  oc.clearRect(0, 0, overCanvas.width, overCanvas.height);
+  const W = overCanvas.width, H = overCanvas.height;
+
+  if (!results.multiHandLandmarks || !results.multiHandLandmarks.length) {
+    stableGesture('none');
+    setStatus('none', 0);
+    if (currentGesture !== 'none') {
+      currentGesture = 'none'; isDrawing = false; currentPath = null; pinching = false; posHistory = [];
+    }
+    cursorEl.style.opacity = '0';
+    return;
+  }
+
+  cursorEl.style.opacity = '1';
+  const lm = results.multiHandLandmarks[0];
+
+  /* ─ Draw skeleton (mirrored) ─ */
+  oc.save();
+  oc.translate(W, 0); oc.scale(-1, 1);
+  if (window.drawConnectors && window.HAND_CONNECTIONS) {
+    window.drawConnectors(oc, lm, window.HAND_CONNECTIONS, { color:'rgba(124,110,245,0.55)', lineWidth:2 });
+    window.drawLandmarks(oc, lm, { color:'rgba(255,255,255,0.9)', fillColor:'rgba(124,110,245,0.7)', lineWidth:1, radius:3.5 });
+  }
+  oc.restore();
+
+  /* ─ Extra: highlight fingertip in draw mode ─ */
+  const ftx = (1 - lm[8].x) * W;
+  const fty = lm[8].y * H;
+
+  /* ─ Gesture ─ */
+  const raw = detectRaw(lm);
+  const gesture = stableGesture(raw);
+  const conf = gestureBuffer.filter(g => g === gesture).length / gestureBuffer.length;
+  setStatus(gesture, conf);
+
+  /* ─ Smooth position ─ */
+  const {x:fx, y:fy} = smoothPos(ftx, fty);
+
+  /* ─ Cursor ─ */
+  cursorEl.style.left = fx+'px'; cursorEl.style.top = fy+'px';
+
+  /* ─ Gesture change ─ */
+  if (gesture !== currentGesture) {
+    if (currentGesture === 'draw') { isDrawing = false; currentPath = null; }
+    if (currentGesture === 'pinch') { pinching = false; }
+    currentGesture = gesture;
+  }
+
+  /* ─ Actions ─ */
+  if (gesture === 'draw') {
+    cursorEl.style.background = activeColor;
+    cursorEl.style.boxShadow  = `0 0 22px ${activeColor}, 0 0 8px ${activeColor}`;
+    cursorEl.style.width  = (thickness + 12) + 'px';
+    cursorEl.style.height = (thickness + 12) + 'px';
+    cursorEl.style.border = '2px solid rgba(255,255,255,0.6)';
+
+    /* Fingertip glow dot on overlay */
+    oc.beginPath();
+    oc.arc(fx, fy, thickness/2+6, 0, Math.PI*2);
+    const r2=parseInt(activeColor.slice(1,3),16), g2=parseInt(activeColor.slice(3,5),16), b2=parseInt(activeColor.slice(5,7),16);
+    oc.fillStyle = `rgba(${r2},${g2},${b2},0.35)`;
+    oc.fill();
+    oc.beginPath(); oc.arc(fx, fy, 5, 0, Math.PI*2);
+    oc.fillStyle = activeColor; oc.fill();
+
+    if (!isDrawing) {
+      isDrawing = true;
+      currentPath = { points:[{x:fx-canvasOffX, y:fy-canvasOffY}], color:activeColor, thickness, glow:glowAmount };
+      paths.push(currentPath);
+    } else {
+      const prev = currentPath.points[currentPath.points.length-1];
+      const curr = {x:fx-canvasOffX, y:fy-canvasOffY};
+      if (Math.hypot(curr.x-prev.x, curr.y-prev.y) > 1.2) {
+        currentPath.points.push(curr);
+        dc.beginPath();
+        dc.moveTo(prev.x+canvasOffX, prev.y+canvasOffY);
+        dc.lineTo(curr.x+canvasOffX, curr.y+canvasOffY);
+        dc.strokeStyle = activeColor; dc.lineWidth = thickness;
+        dc.lineCap='round'; dc.lineJoin='round';
+        applyGlow(dc, activeColor, glowAmount); dc.stroke();
+        dc.shadowColor='transparent'; dc.shadowBlur=0;
+      }
+    }
+
+  } else if (gesture === 'erase') {
+    cursorEl.style.background = 'rgba(239,68,68,0.3)';
+    cursorEl.style.boxShadow  = '0 0 24px rgba(239,68,68,0.65)';
+    cursorEl.style.width  = '56px'; cursorEl.style.height = '56px';
+    cursorEl.style.border = '2px solid rgba(239,68,68,0.7)';
+
+    /* Eraser ring on overlay */
+    oc.beginPath(); oc.arc(fx,fy,28,0,Math.PI*2);
+    oc.strokeStyle='rgba(239,68,68,0.6)'; oc.lineWidth=2; oc.stroke();
+
+    const before = paths.length;
+    paths = paths.filter(p => !p.points.some(pt => Math.hypot((pt.x+canvasOffX)-fx,(pt.y+canvasOffY)-fy)<30));
+    if (paths.length !== before) redrawAll();
+
+  } else if (gesture === 'pinch') {
+    cursorEl.style.background = 'rgba(250,204,21,0.45)';
+    cursorEl.style.boxShadow  = '0 0 18px rgba(250,204,21,0.6)';
+    cursorEl.style.width  = '26px'; cursorEl.style.height = '26px';
+    cursorEl.style.border = '2px solid rgba(250,204,21,0.8)';
+
+    if (!pinching) {
+      pinching=true; pinchSX=fx; pinchSY=fy; pinchOffSX=canvasOffX; pinchOffSY=canvasOffY;
+    } else {
+      canvasOffX = pinchOffSX+(fx-pinchSX);
+      canvasOffY = pinchOffSY+(fy-pinchSY);
+      redrawAll();
+    }
+
+  } else {
+    cursorEl.style.background = 'rgba(124,110,245,0.3)';
+    cursorEl.style.boxShadow  = '0 0 10px rgba(124,110,245,0.2)';
+    cursorEl.style.width  = '18px'; cursorEl.style.height = '18px';
+    cursorEl.style.border = '2px solid rgba(255,255,255,0.2)';
+  }
+}
+
+/* ===== INIT ===== */
+async function init() {
+  try {
+    const hands = new Hands({ locateFile: f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${f}` });
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.75,
+      minTrackingConfidence: 0.65
+    });
+    hands.onResults(onResults);
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width:{ideal:1280}, height:{ideal:720}, facingMode:'user', frameRate:{ideal:30} }
+    });
+    videoEl.srcObject = stream;
+    await videoEl.play();
+
+    // Set initial opacity
+    videoEl.style.opacity = '0.6';
+
+    const cam = new Camera(videoEl, {
+      onFrame: async () => { await hands.send({image: videoEl}); },
+      width: 1280, height: 720
+    });
+    cam.start();
+    return true;
+  } catch(e) {
+    console.error(e); return false;
+  }
+}
+
+/* ===== FLOW ===== */
+(async () => {
+  await new Promise(r => setTimeout(r, 300));
+  loadingEl.classList.add('hidden');
+  splashEl.style.display = 'flex';
+})();
+
+document.getElementById('start-btn').addEventListener('click', async () => {
+  splashEl.classList.add('hidden');
+  appEl.style.display = 'flex';
+  loadingEl.classList.remove('hidden');
+  loadingEl.style.display = 'flex';
+  loadTxt.textContent = 'Starting camera…';
+  resizeCanvases();
+  const ok = await init();
+  loadingEl.style.display = 'none';
+  showToast(ok ? '✨ Draw in the air!' : '⚠️ Camera denied — reload & allow camera');
+});
+
+window.addEventListener('resize', () => { resizeCanvases(); redrawAll(); });
+</script>
+</body>
+</html>
